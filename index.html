@@ -127,6 +127,55 @@
         .chat-body::-webkit-scrollbar-thumb:hover {
             background-color: #aaa;
         }
+
+        /* Add these styles to your existing CSS */
+        .mic-active {
+            background-color: #dc3545 !important;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .mic-feedback {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+            text-align: center;
+            display: none;
+        }
+
+        /* Add these new styles */
+        .mic-status {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .listening {
+            color: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Add these new styles */
+        .message.system {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        .message.system.error {
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -134,6 +183,7 @@
         <!-- Chatbot header/title -->
         <div class="chat-header">
             Agta Chatbot
+            <div id="micStatus" class="mic-status"></div>
         </div>
         <!-- Chat messages will be dynamically inserted here -->
         <div id="chat" class="chat-body">
@@ -142,73 +192,183 @@
         <!-- Footer with input controls for user interaction -->
         <div class="chat-footer">
             <!-- Dropdown to select input mode: text or microphone -->
-            <select id="mode" aria-label="Input mode">
+            <select id="mode" aria-label="Input mode" onchange="handleModeChange()">
                 <option value="text">Text</option>
                 <option value="mic">Microphone</option>
             </select>
             <!-- Text input for user message -->
             <input type="text" id="message" placeholder="Type your message..." aria-label="Message">
             <!-- Button to send the message -->
-            <button onclick="sendMessage()">Send</button>
+            <button id="sendBtn" onclick="handleInput()">Send</button>
         </div>
     </div>
     <script>
-        /*
-            sendMessage()
-            - Called when the user clicks the Send button.
-            - Reads the user's message and selected mode (text or mic).
-            - Sends the message to the Flask backend via a POST request.
-            - Displays both user and bot messages in the chat area.
-            - Plays audio if the backend returns an audio URL.
-        */
-        function sendMessage() {
-            // Get user input and selected mode
-            const userMessage = document.getElementById('message').value;
-            const mode = document.getElementById('mode').value;
-            const chat = document.getElementById('chat');
+        let recognition = null;
+        let isListening = false;
 
-            // If text mode and no message, alert the user
-            if (!userMessage && mode === 'text') {
-                alert("Please type a message!");
-                return;
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window)) {
+                alert('Speech recognition is not supported in your browser. Please use Chrome.');
+                return false;
             }
 
-            // Send POST request to Flask backend at /chat
-            fetch('/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ message: userMessage, mode: mode }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Display user's message in chat area
-                if (mode === 'text') {
-                    chat.innerHTML += `<div class="message user">You: ${userMessage}</div>`;
-                } else if (mode === 'mic') {
-                    // If mic mode, show recognized text or fallback message
-                    const recognizedText = data.recognized_text || "[Unrecognized Voice Input]";
-                    chat.innerHTML += `<div class="message user">You (Mic): ${recognizedText}</div>`;
-                }
-                // Display bot's response
-                chat.innerHTML += `<div class="message bot">Bot: ${data.response}</div>`;
-                // Clear the input box
-                document.getElementById('message').value = '';
-                // Scroll chat to the bottom
-                chat.scrollTop = chat.scrollHeight;
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
 
-                // If backend provides an audio URL, play the audio
-                if (data.audio_url) {
-                    const audio = new Audio(data.audio_url);
-                    audio.play();
+            recognition.onstart = () => {
+                isListening = true;
+                const chat = document.getElementById('chat');
+                chat.innerHTML += `<div class="message system">Listening... Please speak</div>`;
+                chat.scrollTop = chat.scrollHeight;
+                document.getElementById('sendBtn').classList.add('listening');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('message').value = transcript;
+                updateLastSystemMessage(`Heard: ${transcript}`);
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                updateLastSystemMessage('Could not understand speech. Please try again.');
+                isListening = false;
+                document.getElementById('sendBtn').classList.remove('listening');
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                document.getElementById('sendBtn').classList.remove('listening');
+                const transcript = document.getElementById('message').value.trim();
+                
+                if (transcript) {
+                    removeLastSystemMessage(); // Remove the "Heard:" message
+                    sendMessage(transcript);
+                } else {
+                    updateLastSystemMessage('No speech detected. Please try again.');
                 }
-            })
-            .catch(error => {
-                // Log any errors to the console
-                console.error('Error:', error);
-            });
+            };
+
+            return true;
         }
+
+        function updateLastSystemMessage(text) {
+            const systemMessages = document.getElementsByClassName('message system');
+            if (systemMessages.length > 0) {
+                systemMessages[systemMessages.length - 1].textContent = text;
+            }
+        }
+
+        function removeLastSystemMessage() {
+            const systemMessages = document.getElementsByClassName('message system');
+            if (systemMessages.length > 0) {
+                systemMessages[systemMessages.length - 1].remove();
+            }
+        }
+
+        async function sendMessage(message = null) {
+            const messageInput = document.getElementById('message');
+            const userMessage = message || messageInput.value.trim();
+            
+            if (!userMessage) return;
+
+            const chat = document.getElementById('chat');
+            // Display actual transcribed text for mic input or typed text
+            chat.innerHTML += `<div class="message user">You: ${userMessage}</div>`;
+            messageInput.value = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: userMessage }),
+                });
+
+                const data = await response.json();
+                
+                // Create bot response container
+                const botMessage = document.createElement('div');
+                botMessage.className = 'message bot';
+                
+                // Add text response
+                const textResponse = document.createElement('div');
+                textResponse.textContent = `Bot: ${data.response}`;
+                botMessage.appendChild(textResponse);
+                
+                // Add audio player if available
+                if (data.audio_url) {
+                    const audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = data.audio_url;
+                    audio.style.marginTop = '10px';
+                    botMessage.appendChild(audio);
+                }
+
+                chat.appendChild(botMessage);
+                chat.scrollTop = chat.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+                chat.innerHTML += `<div class="message bot">Bot: Sorry, an error occurred.</div>`;
+            }
+        }
+
+        function handleModeChange() {
+            const mode = document.getElementById('mode').value;
+            const messageInput = document.getElementById('message');
+            const micStatus = document.getElementById('micStatus');
+            const sendBtn = document.getElementById('sendBtn');
+
+            if (mode === 'mic') {
+                if (!recognition) {
+                    initSpeechRecognition();
+                }
+                messageInput.placeholder = 'Click Send to start speaking...';
+                micStatus.style.display = 'block';
+                sendBtn.textContent = 'Start Speaking';
+            } else {
+                stopListening();
+                messageInput.placeholder = 'Type your message...';
+                micStatus.style.display = 'none';
+                sendBtn.textContent = 'Send';
+            }
+        }
+
+        function handleInput() {
+            const mode = document.getElementById('mode').value;
+            if (mode === 'mic') {
+                if (!recognition) {
+                    if (!initSpeechRecognition()) {
+                        return;
+                    }
+                }
+                if (!isListening) {
+                    recognition.start();
+                } else {
+                    recognition.stop();
+                }
+            } else {
+                sendMessage();
+            }
+        }
+
+        function stopListening() {
+            isListening = false;
+            document.getElementById('sendBtn').classList.remove('mic-active');
+            document.getElementById('micStatus').style.display = 'none';
+            document.getElementById('message').placeholder = 'Click Send to start speaking...';
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            handleModeChange();
+        };
     </script>
 </body>
 </html>

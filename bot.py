@@ -1,6 +1,4 @@
 import os
-import pygame
-import speech_recognition as sr
 from unidecode import unidecode
 import configparser
 
@@ -98,24 +96,19 @@ class Bot:
     }
 
     def __init__(self):
-        # Loads configuration for audio dataset path from config.ini
         config = configparser.ConfigParser()
         config_path = os.path.join(os.path.dirname(__file__), 'config.ini')
         config.read(config_path)
         self.audio_dataset = config.get('Paths', 'audio_dataset')
-        
-        # Initialize the speech recognizer and pygame mixer for audio playback
-        self.recognizer = sr.Recognizer()
-        pygame.mixer.init()
 
     def translate(self, userinput):
-        """
-        Tries to match the user's input to a known phrase.
-        Returns the translation and the matched English phrase (for audio lookup).
-        """
+        """Translates user input using the translations dictionary"""
+        if not userinput:
+            return "Please provide a phrase to translate.", None
+
         userinput_clean = unidecode(userinput.lower().strip())
 
-        # 1) Prefer exact match on any language
+        # Try exact match
         for english, translations in self.translations.items():
             english_clean = unidecode(english.lower())
             filipino_clean = unidecode(translations['filipino'].lower())
@@ -129,50 +122,4 @@ class Bot:
                 )
                 return translation_text, english
 
-        # 2) Then try word-boundary contains (avoid "mother" matching "grandmother")
-        import re
-        def contains_word(haystack: str, needle: str) -> bool:
-            if not needle:
-                return False
-            pattern = r"(^|\W)" + re.escape(needle) + r"(\W|$)"
-            return re.search(pattern, haystack) is not None
-
-        for english, translations in self.translations.items():
-            english_clean = unidecode(english.lower())
-            filipino_clean = unidecode(translations['filipino'].lower())
-            agta_clean = unidecode(translations['casiguran_agta'].lower())
-
-            if (contains_word(english_clean, userinput_clean) or contains_word(userinput_clean, english_clean) or
-                contains_word(filipino_clean, userinput_clean) or contains_word(userinput_clean, filipino_clean) or
-                contains_word(agta_clean, userinput_clean) or contains_word(userinput_clean, agta_clean)):
-                translation_text = (
-                    f"English: {english}\n"
-                    f"Filipino: {translations['filipino']}\n"
-                    f"Casiguran Agta: {translations['casiguran_agta']}"
-                )
-                return translation_text, english
-
-        # If no match is found, return a default message
-        return "Oops! We don’t have a translation for that yet.", None
-
-    def voice_input(self):
-        """
-        Uses the microphone to capture user's speech and convert it to text.
-        Returns the recognized text or an error message if recognition fails.
-        """
-        try:
-            with sr.Microphone() as source:
-                print("Listening...")
-                audio = self.recognizer.listen(source)
-            text = self.recognizer.recognize_google(audio)
-            print(f"You said: {text}")
-            return text
-        except sr.UnknownValueError:
-            print("Sorry, I couldn't understand.")
-            return ""
-        except sr.RequestError as e:
-            print(f"Speech service is not available right now. Error: {e}")
-            return ""
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            return ""
+        return "Sorry, I don't have a translation for that phrase.", None
