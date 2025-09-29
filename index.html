@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatbot</title>
+    <style>
+        /* 
+            Main styling for the chatbot page.
+            Sets up the layout, colors, and appearance of the chat interface.
+        */
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .chat-container {
+            /* Container for the entire chat interface */
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            /* Header bar at the top of the chat */
+            background-color: #30E3CA; /* Main accent color */
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .chat-body {
+            /* Area where chat messages appear */
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            background-color: #f9f9f9;
+        }
+
+        .chat-footer {
+            /* Footer with input controls */
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-top: 1px solid #ddd;
+            background-color: #ffffff;
+        }
+
+        .chat-footer select,
+        .chat-footer input {
+            /* Styles for input and select dropdown */
+            margin-right: 10px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            flex: 1;
+        }
+
+        .chat-footer button {
+            /* Send button styling */
+            padding: 15px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .chat-footer button:hover {
+            /* Button hover effect */
+            background-color: #45a049;
+        }
+
+        .message {
+            /* Common message styling */
+            padding: 15px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 16px;
+        }
+
+        .message.user {
+            /* User message styling (right side) */
+            align-self: flex-end;
+            background-color: #d1e7dd;
+            color: #155724;
+        }
+
+        .message.bot {
+            /* Bot message styling (left side) */
+            align-self: flex-start;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .chat-body::-webkit-scrollbar {
+            /* Custom scrollbar width */
+            width: 8px;
+        }
+
+        .chat-body::-webkit-scrollbar-thumb {
+            /* Custom scrollbar thumb color */
+            background-color: #ccc;
+            border-radius: 4px;
+        }
+
+        .chat-body::-webkit-scrollbar-thumb:hover {
+            background-color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Chatbot header/title -->
+        <div class="chat-header">
+            Agta Chatbot
+        </div>
+        <!-- Chat messages will be dynamically inserted here -->
+        <div id="chat" class="chat-body">
+            <!-- Chat messages will appear here -->
+        </div>
+        <!-- Footer with input controls for user interaction -->
+        <div class="chat-footer">
+            <!-- Dropdown to select input mode: text or microphone -->
+            <select id="mode" aria-label="Input mode">
+                <option value="text">Text</option>
+                <option value="mic">Microphone</option>
+            </select>
+            <!-- Text input for user message -->
+            <input type="text" id="message" placeholder="Type your message..." aria-label="Message">
+            <!-- Button to send the message -->
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+    <script>
+        /*
+            sendMessage()
+            - Called when the user clicks the Send button.
+            - Reads the user's message and selected mode (text or mic).
+            - Sends the message to the Flask backend via a POST request.
+            - Displays both user and bot messages in the chat area.
+            - Plays audio if the backend returns an audio URL.
+        */
+        function sendMessage() {
+            // Get user input and selected mode
+            const userMessage = document.getElementById('message').value;
+            const mode = document.getElementById('mode').value;
+            const chat = document.getElementById('chat');
+
+            // If text mode and no message, alert the user
+            if (!userMessage && mode === 'text') {
+                alert("Please type a message!");
+                return;
+            }
+
+            // Send POST request to Flask backend at /chat
+            fetch('/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: userMessage, mode: mode }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Display user's message in chat area
+                if (mode === 'text') {
+                    chat.innerHTML += `<div class="message user">You: ${userMessage}</div>`;
+                } else if (mode === 'mic') {
+                    // If mic mode, show recognized text or fallback message
+                    const recognizedText = data.recognized_text || "[Unrecognized Voice Input]";
+                    chat.innerHTML += `<div class="message user">You (Mic): ${recognizedText}</div>`;
+                }
+                // Display bot's response
+                chat.innerHTML += `<div class="message bot">Bot: ${data.response}</div>`;
+                // Clear the input box
+                document.getElementById('message').value = '';
+                // Scroll chat to the bottom
+                chat.scrollTop = chat.scrollHeight;
+
+                // If backend provides an audio URL, play the audio
+                if (data.audio_url) {
+                    const audio = new Audio(data.audio_url);
+                    audio.play();
+                }
+            })
+            .catch(error => {
+                // Log any errors to the console
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
