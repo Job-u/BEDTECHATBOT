@@ -48,7 +48,7 @@ class Bot:
         
         # Daily Use Expressions
         "Excuse me": {"filipino": "Makikiraan po", "casiguran_agta": "Mékidiman kame"},
-        "I'm leaving": {"filipino": "Aalis na po ako", "casiguran_agta": "Még dema kamedén"},
+        "Im leaving": {"filipino": "Aalis na po ako", "casiguran_agta": "Még dema kamedén"},
         "Can you help me": {"filipino": "Maaari mo ba akong tulungan?", "casiguran_agta": "Pwede ék moy tulungan"},
         "What can I do for you": {"filipino": "Ano po ang magagawa ko para sa inyo?", "casiguran_agta": "Anyá i magimet koa para dekam"},
         "I understand": {"filipino": "Naiintindihan ko", "casiguran_agta": "Meentendian ko"},
@@ -56,11 +56,11 @@ class Bot:
         # Question Words
         "What": {"filipino": "Ano?", "casiguran_agta": "Anya"},
         "When": {"filipino": "Kailan?", "casiguran_agta": "Ni kesya"},
-        "Where": {"filipino": "Saan?", "casiguran_agta": "tahe"},
-        "Which": {"filipino": "Alin?", "casiguran_agta": "nahe"},
-        "Who": {"filipino": "Sino?", "casiguran_agta": "te esya"},
-        "Why": {"filipino": "Bakit?", "casiguran_agta": "ata ay"},
-        "How much": {"filipino": "Magkano?", "casiguran_agta": "sanganya?"},
+        "Where": {"filipino": "Saan?", "casiguran_agta": "Tahe"},
+        "Which": {"filipino": "Alin?", "casiguran_agta": "Nahe"},
+        "Who": {"filipino": "Sino?", "casiguran_agta": "Te esya"},
+        "Why": {"filipino": "Bakit?", "casiguran_agta": "Ata ay"},
+        "How much": {"filipino": "Magkano?", "casiguran_agta": "Sanganya?"},
 
         # Colors
         "Blue": {"filipino": "Asul", "casiguran_agta": "Asul"},
