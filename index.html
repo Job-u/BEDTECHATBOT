@@ -90,6 +90,16 @@
             background-color: #45a049;
         }
 
+        /* Friendly tone bubbles */
+        .message.bot {
+            background-color: #fff4e6;
+            color: #7a3e00;
+        }
+        .message.user {
+            background-color: #e6f7ff;
+            color: #004d66;
+        }
+
         .message {
             /* Common message styling */
             padding: 15px;
@@ -102,15 +112,11 @@
         .message.user {
             /* User message styling (right side) */
             align-self: flex-end;
-            background-color: #d1e7dd;
-            color: #155724;
         }
 
         .message.bot {
             /* Bot message styling (left side) */
             align-self: flex-start;
-            background-color: #f8d7da;
-            color: #721c24;
         }
 
         .chat-body::-webkit-scrollbar {
@@ -268,6 +274,8 @@
             }
         }
 
+        // Removed static guide and suggestion submission form
+
         async function sendMessage(message = null) {
             const messageInput = document.getElementById('message');
             const userMessage = message || messageInput.value.trim();
@@ -293,26 +301,160 @@
                 // Create bot response container
                 const botMessage = document.createElement('div');
                 botMessage.className = 'message bot';
-                
-                // Add text response
-                const textResponse = document.createElement('div');
-                textResponse.textContent = `Bot: ${data.response}`;
-                botMessage.appendChild(textResponse);
-                
-                // Add audio player if available
-                if (data.audio_url) {
-                    const audio = document.createElement('audio');
-                    audio.controls = true;
-                    audio.src = data.audio_url;
-                    audio.style.marginTop = '10px';
-                    botMessage.appendChild(audio);
+
+                // Try to render structured translation blocks
+                const container = document.createElement('div');
+                const lines = String(data.response || '').split('\n');
+                const kv = {};
+                lines.forEach(l => {
+                    const idx = l.indexOf(':');
+                    if (idx > -1) {
+                        const key = l.slice(0, idx).trim().toLowerCase();
+                        const val = l.slice(idx + 1).trim();
+                        kv[key] = val;
+                    }
+                });
+
+                const isStructured = kv['english'] || kv['filipino'] || kv['casiguran agta'];
+                if (isStructured) {
+                    container.style.display = 'grid';
+                    container.style.gridTemplateColumns = '1fr';
+                    container.style.rowGap = '8px';
+
+                    const row = (label, value) => {
+                        const r = document.createElement('div');
+                        r.style.display = 'flex';
+                        r.style.flexWrap = 'wrap';
+                        r.style.gap = '8px';
+                        const lab = document.createElement('span');
+                        lab.style.fontWeight = '700';
+                        lab.textContent = label + ':';
+                        const val = document.createElement('span');
+                        val.textContent = value || '';
+                        r.appendChild(lab);
+                        r.appendChild(val);
+                        return r;
+                    };
+
+                    const engRow = row('English', kv['english'] || '');
+                    const filRow = row('Filipino', kv['filipino'] || '');
+                    const agtRow = row('Casiguran Agta', kv['casiguran agta'] || '');
+
+                    container.appendChild(engRow);
+                    container.appendChild(filRow);
+                    container.appendChild(agtRow);
+                    botMessage.appendChild(container);
+
+                    // If audio available, place it right under Agta
+                    if (data.audio_url) {
+                        const audio = document.createElement('audio');
+                        audio.controls = true;
+                        audio.src = data.audio_url;
+                        audio.style.marginTop = '6px';
+                        botMessage.appendChild(audio);
+                    }
+                } else {
+                    // Check if this is a category guidance message
+                    if (data.response.includes("I couldn't find a close match")) {
+                        const categoryContainer = document.createElement('div');
+                        categoryContainer.style.display = 'flex';
+                        categoryContainer.style.flexDirection = 'column';
+                        categoryContainer.style.gap = '12px';
+                        
+                        const lines = data.response.split('\n');
+                        const header = lines[0];
+                        const headerDiv = document.createElement('div');
+                        headerDiv.style.fontWeight = 'bold';
+                        headerDiv.style.marginBottom = '8px';
+                        headerDiv.textContent = header;
+                        categoryContainer.appendChild(headerDiv);
+                        
+                        // Process categories
+                        for (let i = 1; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (line.includes(':')) {
+                                const colonIndex = line.indexOf(':');
+                                const category = line.substring(0, colonIndex).trim();
+                                const items = line.substring(colonIndex + 1).trim();
+                                
+                                const categoryDiv = document.createElement('div');
+                                categoryDiv.style.border = '1px solid #e0e0e0';
+                                categoryDiv.style.borderRadius = '8px';
+                                categoryDiv.style.padding = '12px';
+                                categoryDiv.style.backgroundColor = '#f9f9f9';
+                                
+                                const categoryTitle = document.createElement('div');
+                                categoryTitle.style.fontWeight = 'bold';
+                                categoryTitle.style.marginBottom = '6px';
+                                categoryTitle.style.color = '#333';
+                                categoryTitle.textContent = category + ':';
+                                
+                                const itemsDiv = document.createElement('div');
+                                itemsDiv.style.fontSize = '14px';
+                                itemsDiv.style.color = '#666';
+                                itemsDiv.style.lineHeight = '1.4';
+                                itemsDiv.textContent = items;
+                                
+                                categoryDiv.appendChild(categoryTitle);
+                                categoryDiv.appendChild(itemsDiv);
+                                categoryContainer.appendChild(categoryDiv);
+                            }
+                        }
+                        
+                        botMessage.appendChild(categoryContainer);
+                    } else {
+                        // Fallback: plain text
+                        const textResponse = document.createElement('div');
+                        textResponse.textContent = data.response;
+                        botMessage.appendChild(textResponse);
+                    }
                 }
+                
+                // Add did-you-mean suggestions as friendly chips
+                if (data.suggestions && data.suggestions.length) {
+                    const sug = document.createElement('div');
+                    sug.style.marginTop = '8px';
+                    sug.innerHTML = `<div style="margin-bottom:4px; font-weight:600;">Did you mean:</div>`;
+                    const wrap = document.createElement('div');
+                    wrap.style.display = 'flex';
+                    wrap.style.flexWrap = 'wrap';
+                    wrap.style.gap = '8px';
+                    data.suggestions.forEach(s => {
+                        const btn = document.createElement('button');
+                        btn.className = 'sugBtn';
+                        btn.setAttribute('data-phrase', s);
+                        btn.textContent = s;
+                        btn.style.padding = '6px 10px';
+                        btn.style.border = '1px solid #ffd2a8';
+                        btn.style.background = '#fffaf5';
+                        btn.style.color = '#7a3e00';
+                        btn.style.borderRadius = '999px';
+                        btn.style.cursor = 'pointer';
+                        btn.onmouseenter = () => btn.style.background = '#fff0e0';
+                        btn.onmouseleave = () => btn.style.background = '#fffaf5';
+                        btn.onclick = () => sendMessage(s);
+                        wrap.appendChild(btn);
+                    });
+                    sug.appendChild(wrap);
+                    botMessage.appendChild(sug);
+                }
+
+                // Audio is already handled in the structured translation section above
 
                 chat.appendChild(botMessage);
                 chat.scrollTop = chat.scrollHeight;
+
+                // Livelier prompt when no exact match
+                if (!data.matched_phrase) {
+                    const tip = document.createElement('div');
+                    tip.style.marginTop = '8px';
+                    tip.style.fontWeight = 'bold';
+                    tip.textContent = 'Choose a category then type a word like "Grandmother", "Blue", or "Dog".';
+                    botMessage.appendChild(tip);
+                }
             } catch (error) {
                 console.error('Error:', error);
-                chat.innerHTML += `<div class="message bot">Bot: Sorry, an error occurred.</div>`;
+                chat.innerHTML += `<div class="message bot">Sorry, an error occurred.</div>`;
             }
         }
 
@@ -366,8 +508,31 @@
         }
 
         // Initialize on page load
+        function showStartupGreeting() {
+            const chat = document.getElementById('chat');
+            const greeting = document.createElement('div');
+            greeting.className = 'message bot';
+            greeting.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 8px;">Hello! I'm your Casiguran Agta translator.</div>
+                <div style="margin-bottom: 6px;">Try typing any of these:</div>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 14px;">
+                    <div><strong>Greetings:</strong> good morning, how are you, goodbye</div>
+                    <div><strong>Family:</strong> father, mother, grandfather, grandmother</div>
+                    <div><strong>Colors:</strong> blue, red, white, black, green</div>
+                    <div><strong>Animals:</strong> dog</div>
+                    <div><strong>Questions:</strong> what, when, where, who, why, how much</div>
+                </div>
+                <div style="margin-top: 8px; font-size: 14px; color: #666;">
+                    Choose a category then type a word!
+                </div>
+            `;
+            chat.appendChild(greeting);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
         window.onload = function() {
             handleModeChange();
+            showStartupGreeting();
         };
     </script>
 </body>
